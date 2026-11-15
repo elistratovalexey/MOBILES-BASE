@@ -14,8 +14,12 @@ object SecureStorage {
     }
 
     fun saveCredentials(context: Context, email: String, password: String) {
-        getPrefs(context).edit().apply { putString("cloud_email", email); putString("cloud_password", password) }.apply()
+        getPrefs(context).edit().apply { 
+            putString("cloud_email", email)
+            putString("cloud_password", password) 
+        }.apply()
     }
+    
     fun getEmail(context: Context): String? = getPrefs(context).getString("cloud_email", null)
     fun getPassword(context: Context): String? = getPrefs(context).getString("cloud_password", null)
 }
