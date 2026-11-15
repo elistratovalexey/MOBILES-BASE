@@ -18,7 +18,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Locate sdkmanager & install components
+      - name: Install Android SDK components
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
           SDKMGR=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)
