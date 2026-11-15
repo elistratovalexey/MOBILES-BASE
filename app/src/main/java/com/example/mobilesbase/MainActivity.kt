@@ -195,13 +195,57 @@ fun MainScreen(viewModel: MobileViewModel = viewModel()) {
     val cards by viewModel.allCards.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
 
+    @OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainScreen(viewModel: MobileViewModel = viewModel()) {
+    val cards by viewModel.allCards.collectAsState()
+    var showAddDialog by remember { mutableStateOf(false) }
+    var showCloudDialog by remember { mutableStateOf(false) }
+    var syncMessage by remember { mutableStateOf<String?>(null) }
+
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Мои мобильные номера") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Мои мобильные номера") },
+                actions = {
+                    IconButton(onClick = { showCloudDialog = true }) {
+                        Icon(Icons.Default.CloudUpload, contentDescription = "Синхронизация")
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
                 Icon(Icons.Default.Add, contentDescription = "Добавить")
             }
         }
+    ) { padding ->
+        // ... ваш существующий код LazyColumn ...
+        // (вставьте сюда тот же код, что был раньше для отображения списка)
+        
+        // Показ сообщения о результате синхронизации
+        syncMessage?.let { msg ->
+            Snackbar(
+                modifier = Modifier.padding(16.dp),
+                action = { TextButton(onClick = { syncMessage = null }) { Text("OK") } }
+            ) {
+                Text(msg)
+            }
+        }
+    }
+
+    if (showAddDialog) {
+        AddCardDialog(viewModel = viewModel) { showAddDialog = false }
+    }
+
+    if (showCloudDialog) {
+        CloudSyncDialog(
+            viewModel = viewModel,
+            onDismiss = { showCloudDialog = false },
+            onMessage = { syncMessage = it }
+        )
+    }
+}
     ) { padding ->
         if (cards.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -230,4 +274,74 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Restore
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CloudSyncDialog(viewModel: MobileViewModel, onDismiss: () -> Unit, onMessage: (String) -> Unit) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var isSavingCreds by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Синхронизация с Mail.ru") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Используется WebDAV. Пароль должен быть 'Паролем для внешних приложений' из настроек безопасности Mail.ru, а не основным паролем!")
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email (например, test@mail.ru)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Пароль для внешних приложений") },
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = isSavingCreds, onCheckedChange = { isSavingCreds = it })
+                    Text("Сохранить данные в памяти телефона")
+                }
+            }
+        },
+        confirmButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                Button(onClick = {
+                    if (email.isNotBlank() && password.isNotBlank()) {
+                        if (isSavingCreds) viewModel.saveCloudCredentials(email, password)
+                        viewModel.syncToCloud(onMessage)
+                        onDismiss()
+                    }
+                }, modifier = Modifier.padding(bottom = 8.dp)) {
+                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Загрузить В облако")
+                }
+                TextButton(onClick = {
+                    if (email.isNotBlank() && password.isNotBlank()) {
+                        if (isSavingCreds) viewModel.saveCloudCredentials(email, password)
+                        viewModel.syncFromCloud(onMessage)
+                        onDismiss()
+                    } else {
+                        onMessage("❌ Введите Email и пароль")
+                    }
+                }) {
+                    Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Восстановить ИЗ облака")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Закрыть") }
+        }
+    )
+}
 }
