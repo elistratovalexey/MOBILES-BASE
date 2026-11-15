@@ -29,7 +29,9 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
         if (card != null) dao.updateCard(card.copy(balance = newBalance, lastUpdated = System.currentTimeMillis()))
     }
 
-    fun saveCloudCredentials(email: String, password: String) { SecureStorage.saveCredentials(context, email, password) }
+    fun saveCloudCredentials(email: String, password: String) { 
+        SecureStorage.saveCredentials(context, email, password) 
+    }
 
     fun syncToCloud(onResult: (String) -> Unit) = viewModelScope.launch {
         val email = SecureStorage.getEmail(context) ?: run { onResult("Нет данных для входа"); return@launch }
@@ -46,13 +48,22 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
         result.fold({ json ->
             try {
                 val type = object : TypeToken<Map<String, List<MobileCard>>>() {}.type
-                val cloudCards = (gson.fromJson(json, type) as? Map<*, *>)?.get("cards") as? List<MobileCard> ?: emptyList()
+                @Suppress("UNCHECKED_CAST")
+                val data = gson.fromJson(json, type) as? Map<String, List<MobileCard>>
+                val cloudCards = data?.get("cards") ?: emptyList()
+                
                 cloudCards.forEach { card ->
                     val existing = allCards.value.find { it.phoneNumber == card.phoneNumber }
-                    if (existing != null) dao.updateCard(card.copy(id = existing.id)) else dao.insertCard(card.copy(id = 0))
+                    if (existing != null) {
+                        dao.updateCard(card.copy(id = existing.id))
+                    } else {
+                        dao.insertCard(card.copy(id = 0))
+                    }
                 }
                 onResult("✅ Восстановлено! (${cloudCards.size} записей)")
-            } catch (e: Exception) { onResult("❌ Ошибка чтения: ${e.message}") }
+            } catch (e: Exception) { 
+                onResult("❌ Ошибка чтения: ${e.message}") 
+            }
         }, { onResult("❌ Ошибка: ${it.message}") })
     }
 }
