@@ -18,15 +18,15 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install SDK components (platform 34 + build-tools)
+      - name: Locate sdkmanager & install components
         run: |
-          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
-          yes | sdkmanager --licenses
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKMGR=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)
+          echo "Using sdkmanager: $SDKMGR"
+          yes | "$SDKMGR" --licenses || true
+          "$SDKMGR" --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
-      - name: Setup Gradle (no wrapper needed)
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.5'
