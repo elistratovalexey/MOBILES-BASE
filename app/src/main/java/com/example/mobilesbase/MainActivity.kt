@@ -26,10 +26,14 @@ import com.example.mobilesbase.viewmodel.MobileViewModel
 
 val OPERATORS_LIST = listOf("МТС", "Билайн", "МегаФон", "Tele2", "Йота", "СберМобайл", "Тинькофф Мобайл", "Ростелеком")
 val OPERATOR_URLS = mapOf(
-    "МТС" to "https://moskva.mts.ru/personal", "Билайн" to "https://my.beeline.ru/",
-    "МегаФон" to "https://lk.megafon.ru/", "Tele2" to "https://msk.tele2.ru/",
-    "Йота" to "https://my.yota.ru/", "СберМобайл" to "https://sbermobile.ru/",
-    "Тинькофф Мобайл" to "https://www.tinkoff.ru/mobile/", "Ростелеком" to "https://lk.rt.ru/"
+    "МТС" to "https://moskva.mts.ru/personal",
+    "Билайн" to "https://my.beeline.ru/",
+    "МегаФон" to "https://lk.megafon.ru/",
+    "Tele2" to "https://msk.tele2.ru/",
+    "Йота" to "https://my.yota.ru/",
+    "СберМобайл" to "https://sbermobile.ru/",
+    "Тинькофф Мобайл" to "https://www.tinkoff.ru/mobile/",
+    "Ростелеком" to "https://lk.rt.ru/"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
