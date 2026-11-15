@@ -9,33 +9,21 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        // ВАЖНО: Этот ID никогда не должен меняться, иначе приложение не обновится, а установится как новое
         applicationId = "com.example.mobilesbase"
         minSdk = 26
         targetSdk = 34
-        
-        // ВАЖНО: Для каждого нового релиза, который должен обновлять предыдущий, 
-        // versionCode нужно увеличивать на 1 (было 1, стало 2)
-        versionCode = 2
-        versionName = "1.1" // Человеческая версия (для красоты)
+        versionCode = 3        // было 2 → стало 3 (новая фича = новый билд)
+        versionName = "1.2"
     }
 
-    // ИСПРАВЛЕНИЕ ОШИБКИ JVM: Явно указываем Java 17 для всех компиляторов
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    kotlinOptions { jvmTarget = "17" }
 
-    buildFeatures {
-        compose = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
+    buildFeatures { compose = true }
+    composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
 }
 
 dependencies {
@@ -48,9 +36,20 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    
+
+    // Иконки CloudUpload / Restore (расширенный набор)
+    implementation("androidx.compose.material:material-icons-extended")
+
+    // Room
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
+
+    // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+
+    // === НОВЫЕ зависимости для облака ===
+    implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 }
