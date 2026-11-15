@@ -9,12 +9,27 @@ android {
     compileSdk = 34
 
     defaultConfig {
+        // ВАЖНО: Этот ID никогда не должен меняться, иначе приложение не обновится, а установится как новое
         applicationId = "com.example.mobilesbase"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        
+        // ВАЖНО: Для каждого нового релиза, который должен обновлять предыдущий, 
+        // versionCode нужно увеличивать на 1 (было 1, стало 2)
+        versionCode = 2
+        versionName = "1.1" // Человеческая версия (для красоты)
     }
+
+    // ИСПРАВЛЕНИЕ ОШИБКИ JVM: Явно указываем Java 17 для всех компиляторов
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     buildFeatures {
         compose = true
     }
