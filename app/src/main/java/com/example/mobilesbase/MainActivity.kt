@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardOptions // <-- ДОБАВЛЕН ЭТОТ ИМПОРТ
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -41,8 +42,13 @@ fun UpdateBalanceDialog(card: MobileCard, viewModel: MobileViewModel, onDismiss:
             Column {
                 Text("Откройте личный кабинет, посмотрите баланс и введите его сюда:")
                 Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(value = balanceText, onValueChange = { balanceText = it }, label = { Text("Баланс (₽)") },
-                    keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = balanceText, 
+                    onValueChange = { balanceText = it }, 
+                    label = { Text("Баланс (₽)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), 
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         },
         confirmButton = { Button(onClick = { viewModel.updateBalanceManually(card.id, balanceText.toDoubleOrNull() ?: 0.0); onDismiss() }) { Text("Сохранить") } },
@@ -74,7 +80,7 @@ fun AddCardDialog(viewModel: MobileViewModel, onDismiss: () -> Unit) {
                         OPERATORS_LIST.forEach { option -> DropdownMenuItem(text = { Text(option) }, onClick = { operator = option; expanded = false }) }
                     }
                 }
-                OutlinedTextField(value = payment, onValueChange = { payment = it }, label = { Text("Оплата в месяц (₽)") }, keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = payment, onValueChange = { payment = it }, label = { Text("Оплата в месяц (₽)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = if (isUnlimitedMin) "Безлимит" else minutes, onValueChange = { minutes = it }, label = { Text("Минуты") }, enabled = !isUnlimitedMin, modifier = Modifier.weight(1f))
                     Checkbox(checked = isUnlimitedMin, onCheckedChange = { isUnlimitedMin = it; if (it) minutes = "Безлимит" else minutes = "" })
