@@ -1,0 +1,28 @@
+name: Generate signing key
+
+on:
+  workflow_dispatch:
+
+jobs:
+  genkey:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Generate keystore
+        run: |
+          keytool -genkeypair -v -keystore mobilesbase.jks -storetype PKCS12 -storepass mobilesbase2026 -keypass mobilesbase2026 -alias mobilesbase -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=MobilesBase, OU=Personal, O=MobilesBase, L=Moscow, C=RU"
+          base64 -w 0 mobilesbase.jks > signing_key_base64.txt
+          echo "Done"
+
+      - name: Upload key material
+        uses: actions/upload-artifact@v4
+        with:
+          name: signing-key-KEEP-SECRET
+          path: |
+            signing_key_base64.txt
+            mobilesbase.jks
