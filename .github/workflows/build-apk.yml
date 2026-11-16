@@ -5,6 +5,9 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,11 +21,30 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Create signing key if missing
+        run: |
+          if [ ! -f signing/mobilesbase.jks ]; then
+            mkdir -p signing
+            keytool -genkeypair -v -keystore signing/mobilesbase.jks -storetype PKCS12 -storepass mobilesbase2026 -keypass mobilesbase2026 -alias mobilesbase -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=MobilesBase, OU=Personal, O=MobilesBase, L=Moscow, C=RU"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add signing/mobilesbase.jks
+            git commit -m "Add persistent signing key [skip ci]"
+            git push
+          else
+            echo "Signing key already exists - reusing it"
+          fi
+
+      - name: Set signing environment
+        run: |
+          echo "SIGNING_KEYSTORE_PATH=$GITHUB_WORKSPACE/signing/mobilesbase.jks" >> $GITHUB_ENV
+          echo "SIGNING_STORE_PASSWORD=mobilesbase2026" >> $GITHUB_ENV
+          echo "SIGNING_KEY_ALIAS=mobilesbase" >> $GITHUB_ENV
+          echo "SIGNING_KEY_PASSWORD=mobilesbase2026" >> $GITHUB_ENV
+
       - name: Install Android SDK components
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
           SDKMGR=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)
-          echo "Using sdkmanager: $SDKMGR"
           yes | "$SDKMGR" --licenses || true
           "$SDKMGR" --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
@@ -31,11 +53,11 @@ jobs:
         with:
           gradle-version: '8.5'
 
-      - name: Build Debug APK
+      - name: Build APK
         run: gradle assembleDebug --stacktrace
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MobilesBase-Debug-APK
+          name: MobilesBase-build-${{ github.run_number }}
           path: app/build/outputs/apk/debug/app-debug.apk
