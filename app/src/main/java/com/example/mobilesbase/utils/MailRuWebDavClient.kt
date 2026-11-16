@@ -38,8 +38,7 @@ class MailRuWebDavClient(email: String, appPassword: String) {
     }
 
     private fun authError(code: Int): String =
-        "Доступ запрещён ($code). Проверьте: 1) email введён целиком; " +
-        "2) указан ПАРОЛЬ ДЛЯ ВНЕШНЕГО ПРИЛОЖЕНИЯ, а не обычный пароль от почты."
+        "Доступ запрещён ($code). Проверьте email и ПАРОЛЬ ДЛЯ ВНЕШНЕГО ПРИЛОЖЕНИЯ."
 
     private fun ensureFolder(): String? {
         val request = Request.Builder()
@@ -50,16 +49,14 @@ class MailRuWebDavClient(email: String, appPassword: String) {
         return when (code) {
             in 200..299, 405 -> null
             401, 403 -> authError(code)
-            else -> "Не удалось создать папку MobilesBase ($code): ${body.take(200)}"
+            else -> "Не удалось создать папку MobilesBase ($code): ${body.take(150)}"
         }
     }
 
     suspend fun uploadJson(jsonData: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val folderError = ensureFolder()
-            if (folderError != null) {
-                return@withContext Result.failure(Exception(folderError))
-            }
+            if (folderError != null) return@withContext Result.failure(Exception(folderError))
             val request = Request.Builder()
                 .url(fileUrl)
                 .put(jsonData.toRequestBody("application/json; charset=utf-8".toMediaType()))
@@ -68,24 +65,25 @@ class MailRuWebDavClient(email: String, appPassword: String) {
             when (code) {
                 in 200..299 -> Result.success(Unit)
                 401, 403 -> Result.failure(Exception(authError(code)))
-                409 -> Result.failure(Exception("Папка MobilesBase не найдена (409). Создайте её в Облаке вручную."))
-                507 -> Result.failure(Exception("В Облаке закончилось свободное место (507)."))
-                else -> Result.failure(Exception("Ошибка загрузки ($code): ${body.take(200)}"))
+                409 -> Result.failure(Exception("Папка MobilesBase не найдена (409)"))
+                507 -> Result.failure(Exception("В Облаке нет свободного места (507)"))
+                else -> Result.failure(Exception("Ошибка загрузки ($code): ${body.take(150)}"))
             }
         } catch (e: Exception) {
             Result.failure(Exception("Сеть: ${e.javaClass.simpleName} — ${e.message}"))
         }
     }
 
-    suspend fun downloadJson(): Result<String> = withContext(Dispatchers.IO) {
+    /** null означает, что файла в облаке ещё нет (404). */
+    suspend fun downloadJson(): Result<String?> = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(fileUrl).get().build()
             val (code, body) = exec(request)
             when (code) {
                 in 200..299 -> Result.success(body)
-                404 -> Result.failure(Exception("Копия не найдена (404). Сначала нажмите «Загрузить В облако»."))
+                404 -> Result.success(null)
                 401, 403 -> Result.failure(Exception(authError(code)))
-                else -> Result.failure(Exception("Ошибка скачивания ($code): ${body.take(200)}"))
+                else -> Result.failure(Exception("Ошибка скачивания ($code): ${body.take(150)}"))
             }
         } catch (e: Exception) {
             Result.failure(Exception("Сеть: ${e.javaClass.simpleName} — ${e.message}"))
