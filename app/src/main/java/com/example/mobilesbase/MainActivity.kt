@@ -1,5 +1,8 @@
 package com.example.mobilesbase
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.example.mobilesbase.utils.SecureStorage
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
