@@ -4,6 +4,9 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val ciBuildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+val appVersionBase = "1.3"
+
 android {
     namespace = "com.example.mobilesbase"
     compileSdk = 34
@@ -12,8 +15,36 @@ android {
         applicationId = "com.example.mobilesbase"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = ciBuildNumber
+        versionName = "$appVersionBase.$ciBuildNumber"
+    }
+
+    signingConfigs {
+        create("persistent") {
+            val ksPath = System.getenv("SIGNING_KEYSTORE_PATH")
+            if (!ksPath.isNullOrBlank() && file(ksPath).exists()) {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+                keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+                keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            val ksPath = System.getenv("SIGNING_KEYSTORE_PATH")
+            if (!ksPath.isNullOrBlank() && file(ksPath).exists()) {
+                signingConfig = signingConfigs.getByName("persistent")
+            }
+        }
+        release {
+            isMinifyEnabled = false
+            val ksPath = System.getenv("SIGNING_KEYSTORE_PATH")
+            if (!ksPath.isNullOrBlank() && file(ksPath).exists()) {
+                signingConfig = signingConfigs.getByName("persistent")
+            }
+        }
     }
 
     compileOptions {
@@ -26,6 +57,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
