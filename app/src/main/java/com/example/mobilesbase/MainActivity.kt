@@ -322,11 +322,14 @@ fun CloudSyncDialog(viewModel: MobileViewModel, onDismiss: () -> Unit, onMessage
     var password by remember { mutableStateOf(SecureStorage.getPassword(context) ?: "") }
     var saveCreds by remember { mutableStateOf(true) }
     var showPassword by remember { mutableStateOf(false) }
-    var wasSaved by remember { mutableStateOf(SecureStorage.hasCredentials(context)) }
+    var autoSync by remember { mutableStateOf(SyncState.autoEnabled(context)) }
+    val status by viewModel.syncStatus.collectAsState()
+    val busy by viewModel.syncing.collectAsState()
+    val lastSync = SyncState.lastSyncAt(context)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Синхронизация с Mail.ru") },
+        title = { Text("Синхронизация с Облаком") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -336,17 +339,10 @@ fun CloudSyncDialog(viewModel: MobileViewModel, onDismiss: () -> Unit, onMessage
                     "Нужен ПАРОЛЬ ДЛЯ ВНЕШНЕГО ПРИЛОЖЕНИЯ: Mail.ru → Настройки → Безопасность → Пароли для внешних приложений.",
                     style = MaterialTheme.typography.bodySmall
                 )
-                if (wasSaved) {
-                    Text(
-                        "✅ Данные уже сохранены на телефоне",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Email (например ivan@mail.ru)") },
+                    label = { Text("Email") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -370,54 +366,51 @@ fun CloudSyncDialog(viewModel: MobileViewModel, onDismiss: () -> Unit, onMessage
                     Checkbox(checked = saveCreds, onCheckedChange = { saveCreds = it })
                     Text("Сохранить данные на телефоне")
                 }
-                if (wasSaved) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = autoSync,
+                        onCheckedChange = { autoSync = it; viewModel.setAutoSync(it) }
+                    )
+                    Text("Автосинхронизация каждые 15 мин")
+                }
+                HorizontalDivider()
+                Text("Последний результат:", style = MaterialTheme.typography.bodySmall)
+                Text(status, style = MaterialTheme.typography.bodyMedium)
+                if (lastSync > 0) {
+                    Text(
+                        "Проверено: " + DateUtils.getRelativeTimeSpanString(
+                            lastSync, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (SecureStorage.hasCredentials(context)) {
                     TextButton(onClick = {
                         SecureStorage.clear(context)
                         email = ""
                         password = ""
-                        wasSaved = false
-                        onMessage("Данные удалены с телефона")
+                        onMessage("Сохранённые данные удалены")
                     }) { Text("Забыть сохранённые данные") }
                 }
             }
         },
         confirmButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                Button(
-                    onClick = {
-                        if (email.isBlank() || password.isBlank()) {
-                            onMessage("❌ Введите email и пароль для внешнего приложения")
-                        } else {
-                            if (saveCreds) {
-                                viewModel.saveCloudCredentials(email, password)
-                                wasSaved = true
-                            }
-                            viewModel.syncToCloud(onMessage)
-                            onDismiss()
-                        }
-                    },
-                    modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Загрузить В облако")
-                }
-                TextButton(onClick = {
+            Button(
+                enabled = !busy,
+                onClick = {
                     if (email.isBlank() || password.isBlank()) {
                         onMessage("❌ Введите email и пароль для внешнего приложения")
                     } else {
-                        if (saveCreds) {
-                            viewModel.saveCloudCredentials(email, password)
-                            wasSaved = true
-                        }
-                        viewModel.syncFromCloud(onMessage)
+                        if (saveCreds) viewModel.saveCloudCredentials(email, password)
+                        viewModel.syncNow(onMessage)
                         onDismiss()
                     }
-                }) {
-                    Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Восстановить ИЗ облака")
                 }
+            ) {
+                Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(if (busy) "Синхронизация..." else "Синхронизировать")
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Закрыть") } }
@@ -432,6 +425,7 @@ fun MainScreen(
     viewModel: MobileViewModel = viewModel()
 ) {
     val cards by viewModel.allCards.collectAsState()
+    LaunchedEffect(Unit) { viewModel.startAutoSync() }
     var showAddDialog by remember { mutableStateOf(false) }
     var editingCard by remember { mutableStateOf<MobileCard?>(null) }
     var showCloudDialog by remember { mutableStateOf(false) }
