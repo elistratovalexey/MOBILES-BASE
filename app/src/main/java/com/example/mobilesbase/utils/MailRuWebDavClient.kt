@@ -7,28 +7,88 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 
-class MailRuWebDavClient(private val email: String, private val appPassword: String) {
-    private val client = OkHttpClient()
-    private val webDavUrl = "https://webdav.cloud.mail.ru/MobilesBase/backup.json"
-    private val credentials = Credentials.basic(email, appPassword)
+class MailRuWebDavClient(email: String, appPassword: String) {
+
+    private val auth: String = Credentials.basic(email.trim(), appPassword.trim())
+
+    private val client: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .addNetworkInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .header("Authorization", auth)
+                .build()
+            chain.proceed(request)
+        }
+        .build()
+
+    private val folderUrl = "https://webdav.cloud.mail.ru/MobilesBase/"
+    private val fileUrl = "https://webdav.cloud.mail.ru/MobilesBase/backup.json"
+
+    private fun exec(request: Request): Pair<Int, String> {
+        client.newCall(request).execute().use { response ->
+            val text = try { response.body?.string() ?: "" } catch (e: Exception) { "" }
+            return response.code to text
+        }
+    }
+
+    private fun authError(code: Int): String =
+        "Доступ запрещён ($code). Проверьте: 1) email введён целиком; " +
+        "2) указан ПАРОЛЬ ДЛЯ ВНЕШНЕГО ПРИЛОЖЕНИЯ, а не обычный пароль от почты."
+
+    private fun ensureFolder(): String? {
+        val request = Request.Builder()
+            .url(folderUrl)
+            .method("MKCOL", "".toRequestBody(null))
+            .build()
+        val (code, body) = exec(request)
+        return when (code) {
+            in 200..299, 405 -> null
+            401, 403 -> authError(code)
+            else -> "Не удалось создать папку MobilesBase ($code): ${body.take(200)}"
+        }
+    }
 
     suspend fun uploadJson(jsonData: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder().url(webDavUrl).header("Authorization", credentials)
-                .put(jsonData.toRequestBody("application/json".toMediaType())).build()
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful || response.code == 201 || response.code == 204) Result.success(Unit)
-            else Result.failure(Exception("Ошибка загрузки: ${response.code} ${response.message}"))
-        } catch (e: Exception) { Result.failure(e) }
+            val folderError = ensureFolder()
+            if (folderError != null) {
+                return@withContext Result.failure(Exception(folderError))
+            }
+            val request = Request.Builder()
+                .url(fileUrl)
+                .put(jsonData.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .build()
+            val (code, body) = exec(request)
+            when (code) {
+                in 200..299 -> Result.success(Unit)
+                401, 403 -> Result.failure(Exception(authError(code)))
+                409 -> Result.failure(Exception("Папка MobilesBase не найдена (409). Создайте её в Облаке вручную."))
+                507 -> Result.failure(Exception("В Облаке закончилось свободное место (507)."))
+                else -> Result.failure(Exception("Ошибка загрузки ($code): ${body.take(200)}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Сеть: ${e.javaClass.simpleName} — ${e.message}"))
+        }
     }
 
     suspend fun downloadJson(): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder().url(webDavUrl).header("Authorization", credentials).get().build()
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) Result.success(response.body?.string() ?: "")
-            else Result.failure(Exception("Ошибка скачивания: ${response.code}"))
-        } catch (e: Exception) { Result.failure(e) }
+            val request = Request.Builder().url(fileUrl).get().build()
+            val (code, body) = exec(request)
+            when (code) {
+                in 200..299 -> Result.success(body)
+                404 -> Result.failure(Exception("Копия не найдена (404). Сначала нажмите «Загрузить В облако»."))
+                401, 403 -> Result.failure(Exception(authError(code)))
+                else -> Result.failure(Exception("Ошибка скачивания ($code): ${body.take(200)}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Сеть: ${e.javaClass.simpleName} — ${e.message}"))
+        }
     }
 }
