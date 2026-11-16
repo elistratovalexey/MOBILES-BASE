@@ -310,9 +310,12 @@ fun MobileCardItem(card: MobileCard, viewModel: MobileViewModel, onEdit: () -> U
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CloudSyncDialog(viewModel: MobileViewModel, onDismiss: () -> Unit, onMessage: (String) -> Unit) {
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var isSavingCreds by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var email by remember { mutableStateOf(SecureStorage.getEmail(context) ?: "") }
+    var password by remember { mutableStateOf(SecureStorage.getPassword(context) ?: "") }
+    var saveCreds by remember { mutableStateOf(true) }
+    var showPassword by remember { mutableStateOf(false) }
+    var wasSaved by remember { mutableStateOf(SecureStorage.hasCredentials(context)) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -322,23 +325,52 @@ fun CloudSyncDialog(viewModel: MobileViewModel, onDismiss: () -> Unit, onMessage
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Пароль должен быть 'Паролем для внешних приложений' из настроек безопасности Mail.ru!")
+                Text(
+                    "Нужен ПАРОЛЬ ДЛЯ ВНЕШНЕГО ПРИЛОЖЕНИЯ: Mail.ru → Настройки → Безопасность → Пароли для внешних приложений.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                if (wasSaved) {
+                    Text(
+                        "✅ Данные уже сохранены на телефоне",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Email (test@mail.ru)") },
+                    label = { Text("Email (например ivan@mail.ru)") },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Пароль для внешних приложений") },
-                    visualTransformation = PasswordVisualTransformation(),
+                    label = { Text("Пароль для внешнего приложения") },
+                    singleLine = true,
+                    visualTransformation = if (showPassword) {
+                        androidx.compose.ui.text.input.VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = isSavingCreds, onCheckedChange = { isSavingCreds = it })
-                    Text("Сохранить данные в памяти телефона")
+                    Checkbox(checked = showPassword, onCheckedChange = { showPassword = it })
+                    Text("Показать пароль")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = saveCreds, onCheckedChange = { saveCreds = it })
+                    Text("Сохранить данные на телефоне")
+                }
+                if (wasSaved) {
+                    TextButton(onClick = {
+                        SecureStorage.clear(context)
+                        email = ""
+                        password = ""
+                        wasSaved = false
+                        onMessage("Данные удалены с телефона")
+                    }) { Text("Забыть сохранённые данные") }
                 }
             }
         },
@@ -346,12 +378,15 @@ fun CloudSyncDialog(viewModel: MobileViewModel, onDismiss: () -> Unit, onMessage
             Column(horizontalAlignment = Alignment.End) {
                 Button(
                     onClick = {
-                        if (email.isNotBlank() && password.isNotBlank()) {
-                            if (isSavingCreds) viewModel.saveCloudCredentials(email, password)
+                        if (email.isBlank() || password.isBlank()) {
+                            onMessage("❌ Введите email и пароль для внешнего приложения")
+                        } else {
+                            if (saveCreds) {
+                                viewModel.saveCloudCredentials(email, password)
+                                wasSaved = true
+                            }
                             viewModel.syncToCloud(onMessage)
                             onDismiss()
-                        } else {
-                            onMessage("❌ Введите Email и пароль")
                         }
                     },
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -361,12 +396,15 @@ fun CloudSyncDialog(viewModel: MobileViewModel, onDismiss: () -> Unit, onMessage
                     Text("Загрузить В облако")
                 }
                 TextButton(onClick = {
-                    if (email.isNotBlank() && password.isNotBlank()) {
-                        if (isSavingCreds) viewModel.saveCloudCredentials(email, password)
+                    if (email.isBlank() || password.isBlank()) {
+                        onMessage("❌ Введите email и пароль для внешнего приложения")
+                    } else {
+                        if (saveCreds) {
+                            viewModel.saveCloudCredentials(email, password)
+                            wasSaved = true
+                        }
                         viewModel.syncFromCloud(onMessage)
                         onDismiss()
-                    } else {
-                        onMessage("❌ Введите Email и пароль")
                     }
                 }) {
                     Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
