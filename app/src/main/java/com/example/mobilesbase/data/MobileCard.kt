@@ -13,5 +13,6 @@ data class MobileCard(
     val monthlyGb: String,
     val simLocation: String,
     val balance: Double = 0.0,
-    val lastUpdated: Long = 0L // Timestamp последнего обновления
+    val lastUpdated: Long = 0L,
+    val billingDay: Int = 0
 )
