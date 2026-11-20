@@ -35,6 +35,14 @@ import com.example.mobilesbase.data.MobileCard
 import com.example.mobilesbase.utils.AppSettings
 import com.example.mobilesbase.utils.ThemeMode
 import com.example.mobilesbase.viewmodel.MobileViewModel
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.example.mobilesbase.utils.Billing
+import com.example.mobilesbase.utils.ReminderScheduler
 
 val OPERATORS_LIST = listOf("МТС", "Билайн", "МегаФон", "Tele2", "Йота", "СберМобайл", "Тинькофф Мобайл", "Ростелеком")
 
@@ -275,6 +283,7 @@ fun MobileCardItem(card: MobileCard, viewModel: MobileViewModel, onEdit: () -> U
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = "📍 ${card.simLocation}")
+            BillingInfo(card = card, viewModel = viewModel)
             Text(text = "💰 ${card.monthlyPayment} ₽/мес | 📞 ${card.monthlyMinutes} мин | 🌐 ${card.monthlyGb} ГБ")
             Spacer(modifier = Modifier.height(12.dp))
             Text(
@@ -424,6 +433,7 @@ fun MainScreen(
     viewModel: MobileViewModel = viewModel()
 ) {
     val cards by viewModel.allCards.collectAsState()
+    BillingReminderSetup()
     LaunchedEffect(Unit) { viewModel.startAutoSync() }
     var showAddDialog by remember { mutableStateOf(false) }
     var editingCard by remember { mutableStateOf<MobileCard?>(null) }
@@ -490,7 +500,110 @@ fun MainScreen(
         CloudSyncDialog(viewModel = viewModel, onDismiss = { showCloudDialog = false }, onMessage = { syncMessage = it })
     }
 }
+@Composable
+fun BillingReminderSetup() {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    LaunchedEffect(Unit) {
+        ReminderScheduler.schedule(context)
+        if (Build.VERSION.SDK_INT >= 33) {
+            val granted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+}
 
+@Composable
+fun BillingInfo(card: MobileCard, viewModel: MobileViewModel) {
+    var showDialog by remember { mutableStateOf(false) }
+    val date = Billing.nextChargeDate(card.billingDay)
+    val left = Billing.daysUntil(date)
+    val warn = left != null && left <= 2L
+
+    if (card.billingDay == 0) {
+        TextButton(onClick = { showDialog = true }) { Text("📅 Указать дату списания") }
+    } else {
+        Text(
+            text = "📅 Списание: ${Billing.format(date)} (через $left дн.)",
+            color = if (warn) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+        )
+        if (warn) {
+            Text(
+                text = "⚠️ Проверьте баланс и оплатите ${card.monthlyPayment} ₽",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+        TextButton(onClick = { showDialog = true }) { Text("Изменить дату списания") }
+    }
+
+    if (showDialog) {
+        BillingDayDialog(card = card, viewModel = viewModel) { showDialog = false }
+    }
+}
+
+@Composable
+fun BillingDayDialog(card: MobileCard, viewModel: MobileViewModel, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var dayText by remember {
+        mutableStateOf(if (card.billingDay == 0) "" else card.billingDay.toString())
+    }
+    var errorText by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Дата списания") },
+        text = {
+            Column {
+                Text("Номер: ${card.phoneNumber}")
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "День месяца (1–31), когда оператор списывает абонплату. " +
+                    "Напоминание придёт за 2 дня и в день списания.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = dayText,
+                    onValueChange = { input ->
+                        dayText = input.filter { it.isDigit() }.take(2)
+                        errorText = null
+                    },
+                    label = { Text("День месяца") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = KeyboardType.Number
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                errorText?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(onClick = {
+                    viewModel.updateCard(card.copy(billingDay = 0))
+                    onDismiss()
+                }) { Text("Убрать дату и напоминание") }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val day = dayText.toIntOrNull()
+                if (day == null || day !in 1..31) {
+                    errorText = "Введите число от 1 до 31"
+                } else {
+                    viewModel.updateCard(card.copy(billingDay = day))
+                    ReminderScheduler.runNow(context)
+                    onDismiss()
+                }
+            }) { Text("Сохранить") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+    )
+}
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
